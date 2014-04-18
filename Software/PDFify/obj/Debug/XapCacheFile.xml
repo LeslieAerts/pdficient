@@ -1,0 +1,13 @@
+﻿<xapCache source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Bin\Debug\PDFify_Debug_AnyCPU.xap" wasSigned="False" wasTritonized="False" certificateThumbprint="" TimeStampUrl="" signKeyFile="" signKeyPassword="" lastWriteTime="13-4-2014 23:31:34">
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\obj\Debug\PDFify.dll" archivePath="PDFify.dll" lastWriteTime="13-4-2014 23:31:34" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Assets\AlignmentGrid.png" archivePath="Assets\AlignmentGrid.png" lastWriteTime="21-3-2014 22:38:56" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Assets\Tiles\FlipCycleTileLarge.png" archivePath="Assets\Tiles\FlipCycleTileLarge.png" lastWriteTime="21-3-2014 22:38:56" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Assets\Tiles\FlipCycleTileSmall.png" archivePath="Assets\Tiles\FlipCycleTileSmall.png" lastWriteTime="21-3-2014 22:38:56" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Assets\Tiles\IconicTileMediumLarge.png" archivePath="Assets\Tiles\IconicTileMediumLarge.png" lastWriteTime="21-3-2014 22:38:56" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Assets\Tiles\IconicTileSmall.png" archivePath="Assets\Tiles\IconicTileSmall.png" lastWriteTime="21-3-2014 22:38:56" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Bin\Debug\AppManifest.xaml" archivePath="AppManifest.xaml" lastWriteTime="22-3-2014 00:11:06" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Bin\Debug\Assets\ApplicationIcon.png" archivePath="Assets\ApplicationIcon.png" lastWriteTime="21-3-2014 22:38:56" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Bin\Debug\Assets\Tiles\FlipCycleTileMedium.png" archivePath="Assets\Tiles\FlipCycleTileMedium.png" lastWriteTime="21-3-2014 22:38:56" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\PdfSharp-WP7.dll" archivePath="PdfSharp-WP7.dll" lastWriteTime="22-3-2014 00:01:18" />
+  <file source="D:\Programs\visual_studio_workspace\PDFify\PDFify\Bin\Debug\Properties\WMAppManifest.xml" archivePath="WMAppManifest.xml" lastWriteTime="21-3-2014 22:39:28" />
+</xapCache>
