@@ -17,6 +17,7 @@ using System.IO.IsolatedStorage;
 using System.IO;
 using Windows.Storage;
 using System.Windows.Controls.Primitives;
+using System.Text;
 
 namespace PDFify
 {
@@ -25,6 +26,7 @@ namespace PDFify
         PhotoChooserTask photoChooserTask;
         CameraCaptureTask cameraCaptureTask;
         BitmapImage currentImage;
+        Stream currentImageSourceStream;
         String currentImageLocation;
         // Constructor
         public MainPage()
@@ -56,10 +58,17 @@ namespace PDFify
             if (e.TaskResult == TaskResult.OK)
             {
                 MessageBox.Show(e.OriginalFileName);
-                currentImage.SetSource(e.ChosenPhoto);
-                currentImageLocation = e.OriginalFileName;
-                imgPreview.Source = currentImage;
+
+                SetCurrentPhoto(e);
             }
+        }
+
+        private void SetCurrentPhoto(PhotoResult e)
+        {
+            currentImageLocation = e.OriginalFileName;
+            currentImageSourceStream = e.ChosenPhoto;
+            currentImage.SetSource(e.ChosenPhoto);
+            imgPreview.Source = currentImage;
         }
 
         void photoChooserTask_Completed(object sender, PhotoResult e)
@@ -69,10 +78,7 @@ namespace PDFify
                 //MessageBox.Show(e.ChosenPhoto.Length.ToString());
 
                 //Code to display the photo on the page in an image control named myImage.
-
-                currentImage.SetSource(e.ChosenPhoto);
-                currentImageLocation = e.OriginalFileName;
-                imgPreview.Source = currentImage;
+                SetCurrentPhoto(e);
             }
         }
 
@@ -85,86 +91,176 @@ namespace PDFify
                 return;
             }
 
+            string pdfName = "export.pdf";
 
-            Popup popup = new Popup();
-            popup.Height = 300;
-            popup.Width = 400;
-            popup.VerticalOffset = 100;
-            WindowsPhoneControl1 control = new WindowsPhoneControl1();
-            popup.Child = control;
-            popup.IsOpen = true;
-
-            string pdfName = "";
-            control.btnOK.Click += (s, args) =>
-            {
-                popup.IsOpen = false;
-                pdfName = control.tbx.Text;
-            };
-
-            if (pdfName.Length == 0)
-            {
-                return;
-            }
             //Create a PDF folder if it does not already exist
             StorageFolder local = Windows.Storage.ApplicationData.Current.LocalFolder;
             var pdfFolder = await local.CreateFolderAsync("Generated PDFs", CreationCollisionOption.OpenIfExists);
             var pdfFile = await pdfFolder.CreateFileAsync(pdfName, CreationCollisionOption.ReplaceExisting);
-            StreamWriter sw = new StreamWriter(pdfFile.ToString());
 
-
+            var stream = await System.IO.WindowsRuntimeStorageExtensions.OpenStreamForWriteAsync(pdfFile);
+            StreamWriter writer = new StreamWriter(stream, System.Text.Encoding.UTF8);
+            List<long> xrefs = new List<long>();
 
             //Writing the actual PDF
-            sw.WriteLine("1");
-            sw.WriteLine("%PDF-1.2");
-            sw.WriteLine("%");
-            sw.Flush();
+            writer.WriteLine("1");
+            writer.WriteLine("%PDF-1.2");
+            writer.WriteLine("%");
+            writer.Flush();
+
+            writer.Flush();
+            stream.Flush();
+
+            //#1: catalog - the overall container of the entire PDF
+            xrefs.Add(stream.Position);
+            writer.WriteLine("1 0 obj");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Type /Catalog");
+            writer.WriteLine("  /Pages 2 0 R");
+            writer.WriteLine(">>");
+            writer.WriteLine("endobj");
+
+            //#2: page-list - we have only one child page
+            writer.Flush();
+            stream.Flush();
+            xrefs.Add(stream.Position);
+
+            writer.WriteLine("2 0 obj");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Type /Pages");
+            writer.WriteLine("  /Kids [3 0 R]");
+            writer.WriteLine("  /Count 1");
+            writer.WriteLine(">>");
+            writer.WriteLine("endobj");
+
+            //#3: page - this is our page. We specify size, font resources, and the contents
+            writer.Flush();
+            stream.Flush();
+            xrefs.Add(stream.Position);
+            writer.WriteLine("3 0 obj");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Type /Page");
+            writer.WriteLine("  /Parent 2 0 R");
+            writer.WriteLine("  /MediaBox [0 0 612 792]"); //Default userspace units: 72/inch, origin at bottom left
+            writer.WriteLine("  /Resources");
+            writer.WriteLine("  <<");
+            writer.WriteLine("    /ProcSet [/PDF]"); //This PDF uses only the Text ability
+            writer.WriteLine("    /Font");
+            writer.WriteLine("    <<");
+            writer.WriteLine("      /F0 4 0 R"); //I will define three fonts, #4, #5 and #6
+            writer.WriteLine("      /F1 5 0 R");
+            writer.WriteLine("      /F2 6 0 R");
+            writer.WriteLine("    >>");
+            writer.WriteLine("  >>");
+            writer.WriteLine("  /Contents 7 0 R");
+            writer.WriteLine(">>");
+            writer.WriteLine("endobj");
+
+            //#4, #5, #6: three font resources, all using fonts that are built into all PDF-viewers
+            //We're going to use WinAnsi character encoding, defined below.
+            writer.Flush();
+            stream.Flush();
+            xrefs.Add(stream.Position);
+            writer.WriteLine("4 0 obj");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Type /Font");
+            writer.WriteLine("  /Subtype /Type1");
+            writer.WriteLine("  /Encoding /WinAnsiEncoding");
+            writer.WriteLine("  /BaseFont /Times-Roman");
+            writer.WriteLine(">>");
+
+            writer.Flush();
+            stream.Flush();
+            xrefs.Add(stream.Position);
+
+            writer.WriteLine("5 0 obj");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Type /Font");
+            writer.WriteLine("  /Subtype /Type1");
+            writer.WriteLine("  /Encoding /WinAnsiEncoding");
+            writer.WriteLine("  /BaseFont /Times-Bold");
+            writer.WriteLine(">>");
+
+            writer.Flush();
+            stream.Flush();
+            xrefs.Add(stream.Position);
+
+            //writer.WriteLine("6 0 obj");
+            //writer.WriteLine("<<");
+            //writer.WriteLine("  /Type /XObject");
+            //writer.WriteLine("  /Subtype /Image");
+            //writer.WriteLine("  /Encoding /WinAnsiEncoding");
+            //writer.WriteLine("  /BaseFont /Times-Italic");
+            //writer.WriteLine(">>");
+
+            //Create an image here
+            writer.WriteLine("6 0 obj");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Type /XObject"); //Specify the XOBject
+            writer.WriteLine("  /Subtype /Image"); //It is an image
+            writer.WriteLine("  /Width " + currentImage.PixelWidth); //The dimensions of the image
+            writer.WriteLine("  /Height " + currentImage.PixelHeight);
+            writer.WriteLine("  /BitsPerComponent 8");
+            writer.WriteLine("  /Length 83183");
+            writer.WriteLine("  /Filter /ASCII85Decode");
+            writer.WriteLine(">>");
+
+            writer.Flush();
+            stream.Flush();
+            xrefs.Add(stream.Position);
 
 
+            writer.WriteLine("7 0 obj");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Length " + 8192);
+            writer.WriteLine(">>");
+            writer.WriteLine("stream");
 
+            byte[] data = null;
+            using (MemoryStream imageStream = new MemoryStream())
+            {
+                WriteableBitmap wBitmap = new WriteableBitmap(currentImage);
+                wBitmap.SaveJpeg(imageStream, wBitmap.PixelWidth, wBitmap.PixelHeight, 0, 100);
+                stream.Seek(0, SeekOrigin.Begin);
+                data = imageStream.GetBuffer();
+            }
 
+            foreach (byte b in data)
+            {
+                writer.WriteLine(b);
+            }
 
+            // writer.Write(sb.ToString());
+            writer.WriteLine("endstream");
+            writer.WriteLine("endobj");
 
 
             //Closing
-            sw.Dispose();
+            //PDF-XREFS. This part of the PDF is an index table into every object #1..#7 that we defined.
+            writer.Flush();
+            stream.Flush();
+            long xref_pos = stream.Position;
+            writer.WriteLine("xref");
+            writer.WriteLine("1 " + xrefs.Count);
 
+            foreach (long xref in xrefs)
+            {
+                writer.WriteLine("{0:0000000000} {1:00000} n", xref, 0);
+            }
 
+            // PDF-TRAILER. Every PDF ends with this trailer.
+            writer.WriteLine("trailer");
+            writer.WriteLine("<<");
+            writer.WriteLine("  /Size " + xrefs.Count);
+            writer.WriteLine("  /Root 1 0 R");
+            writer.WriteLine(">>");
+            writer.WriteLine("startxref");
+            writer.WriteLine(xref_pos);
+            writer.WriteLine("%%EOF");
 
+            writer.Dispose();
 
-
-
-
-
-
-            // PdfDocument document = new PdfDocument();
-            // PdfPage page = document.AddPage();
-            // XGraphics gfx = XGraphics.FromPdfPage(page);
-            // MessageBox.Show(currentImageLocation);
-
-            // String name = Path.GetFullPath(currentImageLocation);
-            //MessageBox.Show(name);
-
-
-            // XImage pdfImg = XImage.FromFile(name);
-            // try
-            // {
-
-            // }
-            // catch (Exception ex)
-            // {
-            //     MessageBox.Show("Something went wrong! Please try again");
-
-            //     return;
-            // }
-
-            // //IsolatedStorageFile fileStorage = IsolatedStorageFile.GetUserStoreForApplication();
-            // //StreamWriter Writer = new StreamWriter(new IsolatedStorageFileStream("TestFile.txt", FileMode.OpenOrCreate, fileStorage));
-
-            // String fileName = "export.pdf";
-            // document.Save(fileName);
-            // document.Close();
-
-            // MessageBox.Show("The file has been saved to storage under the name " + fileName);
+            MessageBox.Show("The file has been saved to storage under the name " + pdfName);
 
         }
 
