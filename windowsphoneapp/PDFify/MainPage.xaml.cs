@@ -99,149 +99,172 @@ namespace PDFify
             var pdfFile = await pdfFolder.CreateFileAsync(pdfName, CreationCollisionOption.ReplaceExisting);
 
             var stream = await System.IO.WindowsRuntimeStorageExtensions.OpenStreamForWriteAsync(pdfFile);
-            StreamWriter writer = new StreamWriter(stream, System.Text.Encoding.UTF8);
+            StreamWriter writer = new StreamWriter(stream);
             List<long> xrefs = new List<long>();
 
             //Writing the actual PDF
-            writer.WriteLine("1");
-            writer.WriteLine("%PDF-1.2");
             writer.WriteLine("%");
-            writer.Flush();
+            writer.WriteLine("%PDF-1.5");
+            writer.WriteLine("%");
 
+            //1
             writer.Flush();
             stream.Flush();
-
-            //#1: catalog - the overall container of the entire PDF
             xrefs.Add(stream.Position);
-            writer.WriteLine("1 0 obj");
+            writer.WriteLine("");
+            writer.WriteLine("%The PDF catalog");
+            writer.WriteLine(xrefs.Count + " 0 obj");
             writer.WriteLine("<<");
             writer.WriteLine("  /Type /Catalog");
             writer.WriteLine("  /Pages 2 0 R");
             writer.WriteLine(">>");
             writer.WriteLine("endobj");
 
-            //#2: page-list - we have only one child page
             writer.Flush();
             stream.Flush();
             xrefs.Add(stream.Position);
 
-            writer.WriteLine("2 0 obj");
+            //2
+            //Declare the page list
+            writer.WriteLine("");
+            writer.WriteLine("%The page list");
+            writer.WriteLine(xrefs.Count + " 0 obj");
             writer.WriteLine("<<");
             writer.WriteLine("  /Type /Pages");
             writer.WriteLine("  /Kids [3 0 R]");
-            writer.WriteLine("  /Count 1");
+            //writer.WriteLine("  /Resources 3 0 R");
+            writer.WriteLine("/Count 1");
             writer.WriteLine(">>");
             writer.WriteLine("endobj");
 
-            //#3: page - this is our page. We specify size, font resources, and the contents
             writer.Flush();
             stream.Flush();
             xrefs.Add(stream.Position);
-            writer.WriteLine("3 0 obj");
+
+
+            //3
+            //Declare the page object
+            writer.WriteLine("");
+            writer.WriteLine("%Actual page, with references to all objects it uses (image and resources and whatnot)");
+            writer.WriteLine(xrefs.Count + " 0 obj");
             writer.WriteLine("<<");
             writer.WriteLine("  /Type /Page");
             writer.WriteLine("  /Parent 2 0 R");
-            writer.WriteLine("  /MediaBox [0 0 612 792]"); //Default userspace units: 72/inch, origin at bottom left
-            writer.WriteLine("  /Resources");
-            writer.WriteLine("  <<");
-            writer.WriteLine("    /ProcSet [/PDF]"); //This PDF uses only the Text ability
-            writer.WriteLine("    /Font");
-            writer.WriteLine("    <<");
-            writer.WriteLine("      /F0 4 0 R"); //I will define three fonts, #4, #5 and #6
-            writer.WriteLine("      /F1 5 0 R");
-            writer.WriteLine("      /F2 6 0 R");
-            writer.WriteLine("    >>");
-            writer.WriteLine("  >>");
-            writer.WriteLine("  /Contents 7 0 R");
+            writer.WriteLine("  /Resources 4 0 R");
+            writer.WriteLine("  /MediaBox [0 0 " + currentImage.PixelWidth + " " + currentImage.PixelHeight + "]");
+            //612 792
+            writer.WriteLine("  /Contents 6 0 R");
             writer.WriteLine(">>");
             writer.WriteLine("endobj");
 
-            //#4, #5, #6: three font resources, all using fonts that are built into all PDF-viewers
-            //We're going to use WinAnsi character encoding, defined below.
             writer.Flush();
             stream.Flush();
             xrefs.Add(stream.Position);
-            writer.WriteLine("4 0 obj");
+
+            //4
+            //Declare the stuff this PDF has (Or something?)
+            writer.WriteLine("");
+            writer.WriteLine("%Resources this pdf uses");
+            writer.WriteLine(xrefs.Count + " 0 obj");
             writer.WriteLine("<<");
-            writer.WriteLine("  /Type /Font");
-            writer.WriteLine("  /Subtype /Type1");
-            writer.WriteLine("  /Encoding /WinAnsiEncoding");
-            writer.WriteLine("  /BaseFont /Times-Roman");
+            writer.WriteLine("/ProcSet [/PDF /ImageC]");
+            writer.WriteLine("/XObject << Im1 5 0 R >>");
             writer.WriteLine(">>");
+            writer.WriteLine("endobj");
 
             writer.Flush();
             stream.Flush();
             xrefs.Add(stream.Position);
 
-            writer.WriteLine("5 0 obj");
-            writer.WriteLine("<<");
-            writer.WriteLine("  /Type /Font");
-            writer.WriteLine("  /Subtype /Type1");
-            writer.WriteLine("  /Encoding /WinAnsiEncoding");
-            writer.WriteLine("  /BaseFont /Times-Bold");
-            writer.WriteLine(">>");
-
-            writer.Flush();
-            stream.Flush();
-            xrefs.Add(stream.Position);
-
-            //writer.WriteLine("6 0 obj");
-            //writer.WriteLine("<<");
-            //writer.WriteLine("  /Type /XObject");
-            //writer.WriteLine("  /Subtype /Image");
-            //writer.WriteLine("  /Encoding /WinAnsiEncoding");
-            //writer.WriteLine("  /BaseFont /Times-Italic");
-            //writer.WriteLine(">>");
-
-            //Create an image here
-            writer.WriteLine("6 0 obj");
+            //5
+            writer.WriteLine("");
+            writer.WriteLine("%image declaration");
+            writer.WriteLine(xrefs.Count + " 0 obj");
             writer.WriteLine("<<");
             writer.WriteLine("  /Type /XObject"); //Specify the XOBject
             writer.WriteLine("  /Subtype /Image"); //It is an image
             writer.WriteLine("  /Width " + currentImage.PixelWidth); //The dimensions of the image
             writer.WriteLine("  /Height " + currentImage.PixelHeight);
+            writer.WriteLine("   /ColorSpace /DeviceRGB");
             writer.WriteLine("  /BitsPerComponent 8");
             writer.WriteLine("  /Length 83183");
-            writer.WriteLine("  /Filter /ASCII85Decode");
+            //writer.WriteLine("  /Filter /DCTDecode");
             writer.WriteLine(">>");
+
+            writer.Flush();
+            stream.Flush();
+            //xrefs.Add(stream.Position);
+
+            //Writing the actual image stream
+            writer.WriteLine("stream");
+
+            byte[] data = new byte[8192];
+
+            using (MemoryStream imageStream = new MemoryStream())
+            {
+                WriteableBitmap wBitmap = new WriteableBitmap(currentImage);
+                wBitmap.SaveJpeg(imageStream, wBitmap.PixelWidth, wBitmap.PixelHeight, 0, 100);
+                imageStream.Seek(0, SeekOrigin.Begin);
+                //data = imageStream.ToArray();
+
+                while (true)
+                {
+
+                    int length = imageStream.Read(data, 0, data.Length);
+                    if (length != 0)
+                    {
+                        //writer.Write(data, 0, length);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+
+            //BinaryWriter binWriter = new BinaryWriter(stream, Encoding.UTF8);
+
+           // foreach (byte b in data)
+           // {
+            //    writer.Write(b);
+//
+            //}
+            writer.Flush();
+            // binWriter.Flush();
+            writer.WriteLine("");
+            writer.WriteLine("endstream");
+            writer.WriteLine("endobj");
 
             writer.Flush();
             stream.Flush();
             xrefs.Add(stream.Position);
 
-
-            writer.WriteLine("7 0 obj");
-            writer.WriteLine("<<");
-            writer.WriteLine("  /Length " + 8192);
-            writer.WriteLine(">>");
-            writer.WriteLine("stream");
-
-            byte[] data = null;
-            using (MemoryStream imageStream = new MemoryStream())
-            {
-                WriteableBitmap wBitmap = new WriteableBitmap(currentImage);
-                wBitmap.SaveJpeg(imageStream, wBitmap.PixelWidth, wBitmap.PixelHeight, 0, 100);
-                stream.Seek(0, SeekOrigin.Begin);
-                data = imageStream.GetBuffer();
-            }
-
-            foreach (byte b in data)
-            {
-                writer.WriteLine(b);
-            }
-
-            // writer.Write(sb.ToString());
-            writer.WriteLine("endstream");
+            //6
+            writer.WriteLine("");
+            writer.WriteLine("%the placing of the image");
+            writer.WriteLine(xrefs.Count + " 0 obj");
+            writer.WriteLine("  <<");
+            writer.WriteLine("      /Length 8192");
+            writer.WriteLine("  >>");
+            writer.WriteLine("          stream");
+            writer.WriteLine("          q");
+            writer.WriteLine("              " + 256 + " 0 0 " + 256 + " 0 0 cm");
+            writer.WriteLine("              /Im1 Do");
+            writer.WriteLine("          Q");
+            writer.WriteLine("          endstream");
             writer.WriteLine("endobj");
+            writer.WriteLine(">>");
 
+            writer.Flush();
+            stream.Flush();
+            //xrefs.Add(stream.Position);
 
             //Closing
             //PDF-XREFS. This part of the PDF is an index table into every object #1..#7 that we defined.
-            writer.Flush();
-            stream.Flush();
+
             long xref_pos = stream.Position;
             writer.WriteLine("xref");
-            writer.WriteLine("1 " + xrefs.Count);
+            writer.WriteLine("1 " + (xrefs.Count));
 
             foreach (long xref in xrefs)
             {
