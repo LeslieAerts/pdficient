@@ -150,12 +150,18 @@ namespace PDFify
             writer.WriteLine("<<");
             writer.WriteLine("  /Type /Page");
             writer.WriteLine("  /Parent 2 0 R");
-            writer.WriteLine("  /Resources 4 0 R");
+            writer.WriteLine("  /Resources");
+
+            writer.WriteLine("<<");
+            writer.WriteLine("/ProcSet [/PDF /ImageC]");
+            writer.WriteLine("/XObject << Im1 4 0 R >>");
+            writer.WriteLine(">>");
+
             writer.WriteLine("  /MediaBox [0 0 " + currentImage.PixelWidth + " " + currentImage.PixelHeight + "]");
             //612 792
-            writer.WriteLine("  /Contents 6 0 R");
+            writer.WriteLine("  /Contents 5 0 R");
             writer.WriteLine(">>");
-            writer.WriteLine("endobj");
+            writer.WriteLine("endobj"); 
 
             writer.Flush();
             stream.Flush();
@@ -163,74 +169,62 @@ namespace PDFify
 
             //4
             //Declare the stuff this PDF has (Or something?)
-            writer.WriteLine("");
-            writer.WriteLine("%Resources this pdf uses");
-            writer.WriteLine(xrefs.Count + " 0 obj");
-            writer.WriteLine("<<");
-            writer.WriteLine("/ProcSet [/PDF /ImageC]");
-            writer.WriteLine("/XObject << Im1 5 0 R >>");
-            writer.WriteLine(">>");
-            writer.WriteLine("endobj");
+            //writer.WriteLine("");
+            //writer.WriteLine("%Resources this pdf uses");
+            //writer.WriteLine(xrefs.Count + " 0 obj");
 
-            writer.Flush();
-            stream.Flush();
-            xrefs.Add(stream.Position);
+            //writer.WriteLine("endobj");
+
+            //writer.Flush();
+            //stream.Flush();
+            //xrefs.Add(stream.Position);
+
+
+
+            //Writing the actual image stream
+
+
+            byte[] jpegData = new byte[8192];
+            string streamString = "";
+            using (MemoryStream imageStream = new MemoryStream())
+            {
+                WriteableBitmap wBitmap = new WriteableBitmap(currentImage);
+                
+                wBitmap.SaveJpeg(imageStream, wBitmap.PixelWidth, wBitmap.PixelHeight, 0, 100);
+                imageStream.Seek(0, SeekOrigin.Begin);
+                jpegData = imageStream.GetBuffer();
+
+                foreach (byte b in jpegData)
+                {
+                    streamString += b + " ";
+                }
+            }
+
+            
 
             //5
             writer.WriteLine("");
             writer.WriteLine("%image declaration");
             writer.WriteLine(xrefs.Count + " 0 obj");
             writer.WriteLine("<<");
+            writer.WriteLine("  /Name /Im1"); //Name            
             writer.WriteLine("  /Type /XObject"); //Specify the XOBject
             writer.WriteLine("  /Subtype /Image"); //It is an image
             writer.WriteLine("  /Width " + currentImage.PixelWidth); //The dimensions of the image
             writer.WriteLine("  /Height " + currentImage.PixelHeight);
             writer.WriteLine("   /ColorSpace /DeviceRGB");
             writer.WriteLine("  /BitsPerComponent 8");
-            writer.WriteLine("  /Length 83183");
-            //writer.WriteLine("  /Filter /DCTDecode");
+            writer.WriteLine("  /Length " + streamString.Length);
+            writer.WriteLine("  /Filter /DCTDecode");
             writer.WriteLine(">>");
-
+            writer.WriteLine("stream");
             writer.Flush();
             stream.Flush();
-            //xrefs.Add(stream.Position);
 
-            //Writing the actual image stream
-            writer.WriteLine("stream");
+            writer.Write(streamString);
 
-            byte[] data = new byte[8192];
-
-            using (MemoryStream imageStream = new MemoryStream())
-            {
-                WriteableBitmap wBitmap = new WriteableBitmap(currentImage);
-                wBitmap.SaveJpeg(imageStream, wBitmap.PixelWidth, wBitmap.PixelHeight, 0, 100);
-                imageStream.Seek(0, SeekOrigin.Begin);
-                //data = imageStream.ToArray();
-
-                while (true)
-                {
-
-                    int length = imageStream.Read(data, 0, data.Length);
-                    if (length != 0)
-                    {
-                        //writer.Write(data, 0, length);
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-            }
-
-            //BinaryWriter binWriter = new BinaryWriter(stream, Encoding.UTF8);
-
-           // foreach (byte b in data)
-           // {
-            //    writer.Write(b);
-//
-            //}
             writer.Flush();
-            // binWriter.Flush();
+
             writer.WriteLine("");
             writer.WriteLine("endstream");
             writer.WriteLine("endobj");
@@ -240,24 +234,23 @@ namespace PDFify
             xrefs.Add(stream.Position);
 
             //6
+            string imgDoString = "              " + 256 + " 0 0 " + 256 + " 0 0 cm" + "\r\n";
+            imgDoString += "              /Im1 Do";
             writer.WriteLine("");
             writer.WriteLine("%the placing of the image");
             writer.WriteLine(xrefs.Count + " 0 obj");
             writer.WriteLine("  <<");
-            writer.WriteLine("      /Length 8192");
+            writer.WriteLine("      /Length " + imgDoString.Length);
             writer.WriteLine("  >>");
             writer.WriteLine("          stream");
             writer.WriteLine("          q");
-            writer.WriteLine("              " + 256 + " 0 0 " + 256 + " 0 0 cm");
-            writer.WriteLine("              /Im1 Do");
+            writer.WriteLine(imgDoString);
             writer.WriteLine("          Q");
             writer.WriteLine("          endstream");
             writer.WriteLine("endobj");
-            writer.WriteLine(">>");
 
             writer.Flush();
             stream.Flush();
-            //xrefs.Add(stream.Position);
 
             //Closing
             //PDF-XREFS. This part of the PDF is an index table into every object #1..#7 that we defined.
